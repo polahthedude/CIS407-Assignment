@@ -1,8 +1,11 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
+
 import sqlite3
 from datetime import datetime
+
+is_admin = False
 
 # Initialize the database
 def init_db():
@@ -55,18 +58,28 @@ def init_db():
         )
     """)
 
-    # Add sample data
+
+    # Add clean sample data
+    cursor.execute("DELETE FROM cars WHERE car_id = 1")
+    cursor.execute("DELETE FROM cars WHERE car_id = 2")
     cursor.execute("INSERT OR IGNORE INTO cars (car_id, model, available, price_per_day) VALUES (1, 'Toyota Corolla', 1, 50)")
     cursor.execute("INSERT OR IGNORE INTO cars (car_id, model, available, price_per_day) VALUES (2, 'Honda Civic', 1, 60)")
+
+    cursor.execute("DELETE FROM customers WHERE customer_id = 1")
+    cursor.execute("DELETE FROM customers WHERE customer_id = 2")
+    cursor.execute("INSERT OR IGNORE INTO customers (customer_id, name, phone) VALUES (1, 'John Smith', '2703822346')")
+    cursor.execute("INSERT OR IGNORE INTO customers (customer_id, name, phone) VALUES (2, 'Jane Doe', '7143895621')")
 
     conn.commit()
     conn.close()
 
+
 # Run database initialization
 init_db()
 
+
 # Function to search for available cars
-def search_cars():
+def view_cars():
     conn = sqlite3.connect("car_rental.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM cars WHERE available = 1")
@@ -77,9 +90,10 @@ def search_cars():
         result = "Available Cars:\n\n"
         for car in cars:
             result += f"Car ID: {car[0]}, Model: {car[1]}, Price per Day: ${car[3]}\n"
-        messagebox.showinfo("Search Cars", result)
+        messagebox.showinfo("View Cars", result)
     else:
-        messagebox.showinfo("Search Cars", "No cars available.")
+        messagebox.showinfo("View Cars", "No cars available.")
+
 
 # Function to book a car
 def book_car():
@@ -95,6 +109,7 @@ def book_car():
 
         conn = sqlite3.connect("car_rental.db")
         cursor = conn.cursor()
+
 
         # Check if the car is available
         cursor.execute("SELECT available FROM cars WHERE car_id = ?", (car_id,))
@@ -135,6 +150,7 @@ def book_car():
 
     tk.Button(booking_window, text="Submit", command=submit_booking).pack(pady=10)
 
+
 # Function to view rental history
 def view_history():
     conn = sqlite3.connect("car_rental.db")
@@ -154,6 +170,7 @@ def view_history():
         messagebox.showinfo("Rental History", result)
     else:
         messagebox.showinfo("Rental History", "No rental history found.")
+
 
 # Function to add a new car
 def add_car():
@@ -186,34 +203,167 @@ def add_car():
 
     tk.Button(add_car_window, text="Submit", command=submit_car).pack(pady=10)
 
+
+# Function to update an existing car
+def update_car():
+    def submit_updates():
+        id = id_entry.get()
+        model = model_entry.get()
+        price = price_entry.get()
+
+        if not model or not price:
+            messagebox.showerror("Error", "All fields are required.")
+            return
+    
+        conn = sqlite3.connect("car_rental.db")
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM cars WHERE car_id = ?", (id))
+        car = cursor.fetchone()
+        if not car:
+            messagebox.showerror("Error","Invalid Car ID.")
+
+        cursor.execute("UPDATE cars SET model = ?, available = 1, price_per_day = ? WHERE car_id = ?", (model, price, id))
+        conn.commit()
+        conn.close()
+        messagebox.showinfo("Success", "Car updated successfully!")
+        update_car_window.destroy()
+
+    update_car_window = tk.Toplevel()
+    update_car_window.title("Update an Existing Car")
+
+    tk.Label(update_car_window, text="ID of Car to Update:").pack(pady=5)
+    id_entry = tk.Entry(update_car_window)
+    id_entry.pack(pady=5)
+
+    tk.Label(update_car_window, text="Model:").pack(pady=5)
+    model_entry = tk.Entry(update_car_window)
+    model_entry.pack(pady=5)
+
+    tk.Label(update_car_window, text="Price per Day:").pack(pady=5)
+    price_entry = tk.Entry(update_car_window)
+    price_entry.pack(pady=5)
+
+    tk.Button(update_car_window, text="Submit", command=submit_updates).pack(pady=10)
+
+
+# Function to delete an existing car
+def delete_car():
+    def submit_deletion():
+        id = id_entry.get()
+
+        if not id:
+            messagebox.showerror("Error", "Car ID Required.")
+            return
+        
+        conn = sqlite3.connect("car_rental.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM cars WHERE car_id = ?", (id))
+        car = cursor.fetchone()
+
+        if not car:
+            messagebox.showerror("Error","Invalid Car ID.")
+            return
+        
+        if messagebox.askyesno("Are you sure?", "This action cannot be undone."):
+            cursor.execute("DELETE FROM cars WHERE car_id = ?", (id))
+            conn.commit()
+            conn.close()
+            messagebox.showinfo("Success", "Car deleted successfully")
+            delete_car_window.destroy()
+            return
+        else:
+            return
+
+    delete_car_window = tk.Toplevel()
+    delete_car_window.title("Delete an Existing Car")
+
+    tk.Label(delete_car_window, text="ID of Car to Delete:").pack(pady=5)
+    id_entry = tk.Entry(delete_car_window)
+    id_entry.pack(pady=5)
+
+    tk.Button(delete_car_window, text="Submit", command=submit_deletion).pack(pady=10)
+
+# Function to view all customers
+def view_customers():
+    conn = sqlite3.connect("car_rental.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM customers")
+    customers = cursor.fetchall()
+    conn.close()
+
+    if customers:
+        result = "Customers:\n\n"
+        for customer in customers:
+            result += f"Customer ID: {customer[0]}, Name: {customer[1]}, Phone: ${customer[2]}\n"
+        messagebox.showinfo("View Customers", result)
+    else:
+        messagebox.showinfo("View Customers", "No customers available.")
+
 # Admin Tab Functionality
 def admin_tab_content(frame):
+    # Barebones password protection. For the sake of the demonstration, the username is "admin" and the password is just "1234".
+    def verify_admin():
+        global is_admin
+
+        username = username_entry.get()
+        password = password_entry.get()
+
+        if username == "admin" and password == "1234":
+            is_admin = True
+            for widget in frame.winfo_children():
+                widget.destroy()
+            admin_tab_content(frame)
+            messagebox.showinfo("Success", f"Logged in as: {username}")
+        else:
+            messagebox.showerror("Error", "Invalid username or password.")
+
     tk.Label(frame, text="Admin Panel", font=("Arial", 16)).pack(pady=10)
 
-    # Add Car
-    add_car_btn = tk.Button(frame, text="Add Car", command=add_car)
-    add_car_btn.pack(pady=5)
+    if not is_admin:
+        tk.Label(frame, text="Username:").pack(pady=5)
+        username_entry = tk.Entry(frame)
+        username_entry.pack(pady=5)
 
-    # Manage Rentals
-    rentals_btn = tk.Button(frame, text="View Rental History", command=view_history)
-    rentals_btn.pack(pady=5)
+        tk.Label(frame, text="Password:").pack(pady=5)
+        password_entry = tk.Entry(frame)
+        password_entry.pack(pady=5)
+
+        tk.Button(frame, text="Login", command=verify_admin).pack(pady=10)
+    else:
+        # Search Car
+        search_btn = tk.Button(frame, text="Search Cars", command=view_cars).pack(pady=5)
+
+        # Add Car
+        add_car_btn = tk.Button(frame, text="Add Car", command=add_car).pack(pady=5)
+
+        # Update Car
+        update_car_btn = tk.Button(frame, text="Update Car", command=update_car).pack(pady=5)
+
+        # Delete Car
+        delete_car_btn = tk.Button(frame, text="Delete Car", command=delete_car).pack(pady=5)
+
+        # View Customers
+        view_customers_btn = tk.Button(frame, text="View Customers", command=view_customers).pack(pady=5)
+
+        # Manage Rentals
+        rentals_btn = tk.Button(frame, text="View Rental History", command=view_history).pack(pady=5)
+
 
 # Customer Tab Functionality
 def customer_tab_content(frame):
     tk.Label(frame, text="Search Available Cars", font=("Arial", 16)).pack(pady=10)
 
-    search_btn = tk.Button(frame, text="Search Cars", command=search_cars)
-    search_btn.pack(pady=5)
+    search_btn = tk.Button(frame, text="Search Cars", command=view_cars).pack(pady=5)
 
     # Book Car
     tk.Label(frame, text="Book a Car", font=("Arial", 16)).pack(pady=10)
-    book_btn = tk.Button(frame, text="Book Car", command=book_car)
-    book_btn.pack(pady=5)
+    book_btn = tk.Button(frame, text="Book Car", command=book_car).pack(pady=5)
 
     # View History
     tk.Label(frame, text="View Rental History", font=("Arial", 16)).pack(pady=10)
-    history_btn = tk.Button(frame, text="View History", command=view_history)
-    history_btn.pack(pady=5)
+    history_btn = tk.Button(frame, text="View History", command=view_history).pack(pady=5)
+
 
 # Main Application
 def main():
